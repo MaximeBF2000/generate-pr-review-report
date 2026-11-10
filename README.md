@@ -1,4 +1,4 @@
-# generate-pr-review-report - CLI tools for review agents
+# generate-pr-review-report - CLI tool for review agents
 
 [![npm](https://img.shields.io/npm/v/generate-pr-review-report.svg)](https://www.npmjs.com/package/generate-pr-review-report)
 [![license](https://img.shields.io/npm/l/generate-pr-review-report.svg)](LICENSE)
