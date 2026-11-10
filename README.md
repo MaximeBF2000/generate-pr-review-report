@@ -3,7 +3,12 @@
 [![npm](https://img.shields.io/npm/v/generate-pr-review-report.svg)](https://www.npmjs.com/package/generate-pr-review-report)
 [![license](https://img.shields.io/npm/l/generate-pr-review-report.svg)](LICENSE)
 
-Turns the structured JSON produced by an AI code-review agent into a **single, self-contained HTML file** (no external assets, no network calls). Zero dependencies — Node ≥ 18.
+CLI tool for Code Review agents to render their feedbacks in a clean HTML template.
+
+The CLI turns a structured JSON produced by an AI code-review agent into a **single, self-contained HTML file** (no external assets, no network calls). Zero dependencies — Node ≥ 18.
+Easy review for the human that reads the report.
+
+![Example review report](./ai-pr-review-preview.png)
 
 ## Install
 
@@ -33,13 +38,13 @@ generate-pr-review-report --input review.json --output ./review-report-pr-482.ht
 cat review.json | generate-pr-review-report -i -
 ```
 
-| Flag | Description |
-| --- | --- |
-| `-i, --input` | Inline JSON string, path to a `.json` file, or `-` for stdin. **Required.** |
-| `-o, --output` | Output path. Defaults to `./review-report-pr-<key>.html` (or `./review-report-<branch>.html`). Parent folders are created. |
-| `-h, --help` / `-v, --version` | |
+| Flag                           | Description                                                                                                                |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| `-i, --input`                  | Inline JSON string, path to a `.json` file, or `-` for stdin. **Required.**                                                |
+| `-o, --output`                 | Output path. Defaults to `./review-report-pr-<key>.html` (or `./review-report-<branch>.html`). Parent folders are created. |
+| `-h, --help` / `-v, --version` |                                                                                                                            |
 
-On success the absolute output path is printed to **stdout** (easy for an agent to capture). On invalid input it exits `1` and lists *every* problem on stderr, e.g. `feedbacks[2].severity: expected one of "must_fix", "should_consider", "nit"` — so the agent can fix everything in one retry.
+On success the absolute output path is printed to **stdout** (easy for an agent to capture). On invalid input it exits `1` and lists _every_ problem on stderr, e.g. `feedbacks[2].severity: expected one of "must_fix", "should_consider", "nit"` — so the agent can fix everything in one retry.
 
 ## Using it from an AI agent skill
 
@@ -56,25 +61,26 @@ Prefer a temp file (or stdin) over inline `-i '{...}'`. Markdown in summaries of
 
 ```jsonc
 {
-  "key": 482,                          // PR number (or any string id) — optional
-  "branch": "feature/my-feature",      // optional
+  "key": 482, // PR number (or any string id) — optional
+  "branch": "feature/my-feature", // optional
   "url": "https://github.com/u/r/pull/482", // optional — enables the "View PR" button
   "title": "Add user notification preferences", // required — the PR title
-  "summary": "Markdown…",              // required — overview, architecture, context
-  "author": "jdoe",                    // optional (leading @ is stripped)
-  "numberOfFilesChanged": 4,           // optional
-  "numberOfLinesAdded": 342,           // optional
-  "numberOfLinesDeleted": 56,          // optional
-  "feedbacks": [                       // required — use [] for a clean PR ("Ready to merge" view)
+  "summary": "Markdown…", // required — overview, architecture, context
+  "author": "jdoe", // optional (leading @ is stripped)
+  "numberOfFilesChanged": 4, // optional
+  "numberOfLinesAdded": 342, // optional
+  "numberOfLinesDeleted": 56, // optional
+  "feedbacks": [
+    // required — use [] for a clean PR ("Ready to merge" view)
     {
       "file": "src/services/notification.service.ts", // required
-      "severity": "must_fix",          // required: must_fix | should_consider | nit
-      "lineStart": 42,                 // optional
-      "lineEnd": 47,                   // optional (defaults to lineStart)
+      "severity": "must_fix", // required: must_fix | should_consider | nit
+      "lineStart": 42, // optional
+      "lineEnd": 47, // optional (defaults to lineStart)
       "title": "Handle potential null user", // optional — short headline; derived from `comment` if omitted
       "text": "Markdown explanation for you (can be verbose)", // required
-      "comment": "Concise comment to post on the PR",          // required — editable + copyable in the report
-      "suggestion": " context\n-removed\n+added"                // optional — unified-diff lines, numbered from lineStart
+      "comment": "Concise comment to post on the PR", // required — editable + copyable in the report
+      "suggestion": " context\n-removed\n+added" // optional — unified-diff lines, numbered from lineStart
     }
   ]
 }

@@ -2,8 +2,3 @@ node_modules/
 out/
 *.log
 .DS_Store
-
-# Local design notes / prototype assets (not part of the tool)
-brief.md
-ai-pr-review.html
-*.png
