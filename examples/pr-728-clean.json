@@ -1,0 +1,12 @@
+{
+  "key": 728,
+  "branch": "feature/user-timezone",
+  "url": "https://github.com/acme/app/pull/728",
+  "title": "Add user timezone preference",
+  "summary": "This PR adds user timezone preference support, allowing users to set and persist their preferred timezone for a personalized experience.\n\n### Architectural changes\n\n- Adds a new `TimezonePreference` domain (model, service, and repository).\n- Introduces a `PUT /api/users/:id/timezone` endpoint to update a user's timezone.\n- Persists the timezone in the `users` table (`timezone` column) via a migration.\n- Updates request validation and shared types to include the optional `timezone` field.",
+  "author": "marina",
+  "numberOfFilesChanged": 3,
+  "numberOfLinesAdded": 198,
+  "numberOfLinesDeleted": 27,
+  "feedbacks": []
+}

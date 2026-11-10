@@ -1,0 +1,42 @@
+{
+  "name": "generate-pr-review-report",
+  "version": "1.0.0",
+  "description": "Generate a static, self-contained HTML report from an AI PR review JSON payload.",
+  "keywords": [
+    "code-review",
+    "pull-request",
+    "ai",
+    "report",
+    "html",
+    "cli",
+    "github",
+    "agent"
+  ],
+  "homepage": "https://github.com/MaximeBF2000/generate-pr-review-report#readme",
+  "bugs": {
+    "url": "https://github.com/MaximeBF2000/generate-pr-review-report/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MaximeBF2000/generate-pr-review-report.git"
+  },
+  "author": "MaximeBF2000",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "generate-pr-review-report": "./bin/generate-pr-review-report.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "templates"
+  ],
+  "scripts": {
+    "example": "node bin/generate-pr-review-report.js -i examples/pr-482.json -o out/review-report-pr-482.html && node bin/generate-pr-review-report.js -i examples/pr-728-clean.json -o out/review-report-pr-728.html",
+    "test": "node --test test/",
+    "prepublishOnly": "npm test"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

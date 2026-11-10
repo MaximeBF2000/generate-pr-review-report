@@ -1,0 +1,51 @@
+{
+  "key": 482,
+  "branch": "feature/notification-preferences",
+  "url": "https://github.com/acme/app/pull/482",
+  "title": "Add user notification preferences",
+  "summary": "This PR adds user notification preferences, allowing users to choose which types of notifications they receive (email, push, in-app).\n\n### Architectural changes\n\n- Introduces a new `NotificationPreferences` domain (model, service, and repository).\n- Adds a new API endpoint: `GET/PUT /api/users/:id/notification-preferences`.\n- Persists preferences in a new database table (`notification_preferences`) via a migration.\n- Integrates the preferences in the notification dispatch flow to filter out disabled channels.",
+  "author": "jdoe",
+  "numberOfFilesChanged": 4,
+  "numberOfLinesAdded": 342,
+  "numberOfLinesDeleted": 56,
+  "feedbacks": [
+    {
+      "file": "src/routes/notification-preferences.route.ts",
+      "severity": "should_consider",
+      "lineStart": 18,
+      "lineEnd": 32,
+      "title": "Extract validation to a schema",
+      "text": "The route handler manually checks the incoming payload. A shared schema would make validation reusable, improve error messages, and keep the controller focused on request handling.",
+      "comment": "Could we extract the request validation to a shared Zod schema? It would keep the route concise and ensure consistent validation across endpoints.",
+      "suggestion": "-if (!body.email || !body.push) {\n-  throw new Error('Invalid preferences');\n-}\n+const preferences = notificationPreferencesSchema.parse(body);"
+    },
+    {
+      "file": "src/services/notification.service.ts",
+      "severity": "must_fix",
+      "lineStart": 42,
+      "lineEnd": 47,
+      "title": "Handle potential null user",
+      "text": "`userRepository.findById` can return `null`, which would cause a runtime error when accessing `user.notificationPreferences`. We should handle the null case explicitly.",
+      "comment": "`user` can be null here. Let's handle the case (e.g., throw a `NotFoundError` or return early) to avoid a potential runtime error.",
+      "suggestion": " const user = await userRepository.findById(userId);\n-return user.notificationPreferences;\n+if (!user) {\n+  throw new NotFoundError(`User ${userId} not found`);\n+}\n+return user.notificationPreferences;"
+    },
+    {
+      "file": "db/migrations/20250114_add_notification_preferences.sql",
+      "severity": "should_consider",
+      "lineStart": 6,
+      "lineEnd": 10,
+      "title": "Add a database index for user_id",
+      "text": "The new preferences table will be queried by user ID on **every notification dispatch**. Adding an index may help this lookup stay efficient as the table grows.\n\nVerify whether the unique constraint already creates one.",
+      "comment": "Since we query preferences by `user_id`, can we confirm that this column is indexed? A unique constraint may already cover it.",
+      "suggestion": " CREATE TABLE notification_preferences (\n   user_id UUID NOT NULL REFERENCES users(id),\n+CREATE INDEX idx_notification_prefs_user_id ON notification_preferences(user_id);"
+    },
+    {
+      "file": "src/models/notification-preferences.ts",
+      "severity": "nit",
+      "lineStart": 12,
+      "lineEnd": 12,
+      "text": "The field name `isPush` is slightly ambiguous. A name such as `pushEnabled` makes it easier to understand that this is an opt-in preference.",
+      "comment": "Tiny naming suggestion: `pushEnabled` might read more clearly than `isPush` here."
+    }
+  ]
+}
