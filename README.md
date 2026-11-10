@@ -1,11 +1,11 @@
-# generate-pr-review-report
+# generate-pr-review-report - CLI tools for review agents
 
 [![npm](https://img.shields.io/npm/v/generate-pr-review-report.svg)](https://www.npmjs.com/package/generate-pr-review-report)
 [![license](https://img.shields.io/npm/l/generate-pr-review-report.svg)](LICENSE)
 
-CLI tool for Code Review agents to render their feedbacks in a clean HTML template.
+CLI tool for Code Review agents to render their report in a clean HTML template.
 
-The CLI turns a structured JSON produced by an AI code-review agent into a **single, self-contained HTML file** (no external assets, no network calls). Zero dependencies — Node ≥ 18.
+The CLI turns a structured JSON produced by an AI code-review agent into a **single, self-contained HTML file** (no external assets, no network calls). Zero dependencies - Node ≥ 18.
 Easy review for the human that reads the report.
 
 ![Example review report](./ai-pr-review-preview.png)
