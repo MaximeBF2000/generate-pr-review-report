@@ -103,14 +103,19 @@ function renderFinding(fb) {
 }
 
 const EMPTY_ILLUSTRATION = `<svg class="empty-illustration" viewBox="0 0 320 190" aria-hidden="true">
-  <ellipse cx="160" cy="172" rx="82" ry="9" fill="#e6e1fb"/>
-  <g fill="#e8e4fb"><path d="M38 128a20 20 0 0 1 38-8 15 15 0 0 1 22 13H38z"/><path d="M224 136a16 16 0 0 1 30-6 12 12 0 0 1 18 10h-48z"/></g>
-  <path d="M160 34l14 10 17-1 6 16 14 9-5 16 5 16-14 9-6 16-17-1-14 10-14-10-17 1-6-16-14-9 5-16-5-16 14-9 6-16 17 1z" fill="#ddf6e5" stroke="#3fae68" stroke-width="3" stroke-linejoin="round"/>
-  <path d="M138 101l15 15 30-32" fill="none" stroke="#11793d" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
-  <g stroke="#7a56dd" stroke-width="4" stroke-linecap="round"><path d="M207 22l-3 13"/><path d="M226 34l-9 9"/><path d="M233 55l-13 2"/></g>
+  <ellipse class="ill-shadow" cx="160" cy="172" rx="82" ry="9"/>
+  <g class="ill-cloud"><path d="M38 128a20 20 0 0 1 38-8 15 15 0 0 1 22 13H38z"/><path d="M224 136a16 16 0 0 1 30-6 12 12 0 0 1 18 10h-48z"/></g>
+  <path class="ill-badge" d="M160 34l14 10 17-1 6 16 14 9-5 16 5 16-14 9-6 16-17-1-14 10-14-10-17 1-6-16-14-9 5-16-5-16 14-9 6-16 17 1z" stroke-width="3" stroke-linejoin="round"/>
+  <path class="ill-check" d="M138 101l15 15 30-32" fill="none" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+  <g class="ill-spark" stroke-width="4" stroke-linecap="round"><path d="M207 22l-3 13"/><path d="M226 34l-9 9"/><path d="M233 55l-13 2"/></g>
 </svg>`;
 
-export function renderReport(review, { generatedAt = new Date() } = {}) {
+export const SIZES = ['s', 'm', 'l'];
+export const THEMES = ['light', 'dark'];
+
+export function renderReport(review, { generatedAt = new Date(), size = 'm', theme = 'light' } = {}) {
+  if (!SIZES.includes(size)) throw new Error(`size must be one of ${SIZES.join(', ')}`);
+  if (!THEMES.includes(theme)) throw new Error(`theme must be one of ${THEMES.join(', ')}`);
   const template = readFileSync(TEMPLATE_PATH, 'utf8');
   const fbs = review.feedbacks;
   const counts = Object.fromEntries(Object.keys(SEVERITY).map((k) => [k, fbs.filter((f) => f.severity === k).length]));
@@ -204,6 +209,8 @@ export function renderReport(review, { generatedAt = new Date() } = {}) {
     SUMMARY: summary,
     REVIEWS: reviews,
     DATA_JSON: dataJson,
+    SIZE: size,
+    THEME: theme,
   };
   return template.replace(/\{\{([A-Z_]+)\}\}/g, (match, name) => (name in replacements ? replacements[name] : match));
 }

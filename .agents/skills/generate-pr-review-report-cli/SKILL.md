@@ -19,6 +19,8 @@ description: Renders a finished pull request review as a self-contained HTML rep
 
 `-o` is optional and defaults to `./review-report-pr-<key>.html`. `-i -` reads JSON from stdin.
 
+If the user asks for it, `--dark` opens the report in dark mode and `--size S|M|L` sets the default text size (`M` if not given). Readers can change both in the page.
+
 ## JSON format
 
 ```json

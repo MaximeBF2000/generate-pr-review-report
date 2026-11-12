@@ -5,7 +5,7 @@ import { parseArgs } from 'node:util';
 import { renderReport } from '../src/render.js';
 import { validateReview, ValidationError } from '../src/validate.js';
 
-const USAGE = `Usage: generate-pr-review-report -i <json|file|-> [-o <file.html>]
+const USAGE = `Usage: generate-pr-review-report -i <json|file|-> [-o <file.html>] [--size S|M|L] [--dark]
 
 Generate a static, self-contained HTML report from an AI PR review JSON payload.
 
@@ -14,12 +14,16 @@ Options:
                         .json file, or "-" to read from stdin.
   -o, --output <file>   Output HTML path. Defaults to ./review-report-pr-<key>.html
                         (or ./review-report-<branch>.html when there is no key).
+  -s, --size <S|M|L>    Default text size of the report (default: M).
+                        Viewers can still switch it in the page.
+  -d, --dark            Open the report in dark mode by default
+                        (viewers can still switch to light).
   -h, --help            Show this help.
   -v, --version         Show the version.
 
 Examples:
   generate-pr-review-report -i '{"key":482,"title":"...","summary":"...","feedbacks":[]}' -o ./review-report-pr-482.html
-  generate-pr-review-report --input review.json --output ./out/report.html
+  generate-pr-review-report --input review.json --output ./out/report.html --size L --dark
   cat review.json | generate-pr-review-report -i -`;
 
 function fail(message, code = 1) {
@@ -49,6 +53,8 @@ try {
     options: {
       input: { type: 'string', short: 'i' },
       output: { type: 'string', short: 'o' },
+      size: { type: 'string', short: 's', default: 'M' },
+      dark: { type: 'boolean', short: 'd', default: false },
       help: { type: 'boolean', short: 'h' },
       version: { type: 'boolean', short: 'v' },
     },
@@ -65,6 +71,8 @@ if (args.version) {
   process.exit(0);
 }
 if (args.input == null) fail(`missing required --input\n\n${USAGE}`, 2);
+const size = args.size.trim().toLowerCase();
+if (!['s', 'm', 'l'].includes(size)) fail(`--size must be S, M or L (got "${args.size}")`, 2);
 
 let parsed;
 try {
@@ -83,7 +91,7 @@ try {
 
 const outputPath = resolve(args.output ?? defaultOutput(review));
 mkdirSync(dirname(outputPath), { recursive: true });
-writeFileSync(outputPath, renderReport(review), 'utf8');
+writeFileSync(outputPath, renderReport(review, { size, theme: args.dark ? 'dark' : 'light' }), 'utf8');
 
 const n = review.feedbacks.length;
 process.stdout.write(`${outputPath}\n`);

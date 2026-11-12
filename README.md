@@ -36,13 +36,18 @@ npm install -g github:MaximeBF2000/generate-pr-review-report
 generate-pr-review-report -i '{...}' -o ./review-report-pr-482.html
 generate-pr-review-report --input review.json --output ./review-report-pr-482.html
 cat review.json | generate-pr-review-report -i -
+generate-pr-review-report -i review.json --dark --size L
 ```
 
 | Flag                           | Description                                                                                                                |
 | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
 | `-i, --input`                  | Inline JSON string, path to a `.json` file, or `-` for stdin. **Required.**                                                |
 | `-o, --output`                 | Output path. Defaults to `./review-report-pr-<key>.html` (or `./review-report-<branch>.html`). Parent folders are created. |
+| `-s, --size`                   | Default text size: `S`, `M` (default) or `L`.                                                                              |
+| `-d, --dark`                   | Open the report in dark mode (light is the default).                                                                       |
 | `-h, --help` / `-v, --version` |                                                                                                                            |
+
+`--size` and `--dark` only set how the report opens. Readers can switch the size (S / M / L) and the theme from the top-right of the page. Those changes aren't saved: reopening the file brings back the generated defaults.
 
 On success the absolute output path is printed to **stdout** (easy for an agent to capture). On invalid input it exits `1` and lists _every_ problem on stderr, e.g. `feedbacks[2].severity: expected one of "must_fix", "should_consider", "nit"` — so the agent can fix everything in one retry.
 
@@ -97,6 +102,7 @@ Severity aliases like `must-fix`, `Must fix`, `consider`, `nitpick` are accepted
 - Review comments filterable by severity, collapsible, each with a copy-path button, an **editable** suggested comment with a copy button, and an optional diff
 - Checkboxes choose which comments go into **Copy review** (copies the whole review as Markdown, including your edits)
 - Empty state "No feedback — PR looks good to go" when `feedbacks` is `[]`
+- S / M / L size switch and a light / dark theme toggle in the top bar
 - All agent-provided text is HTML-escaped; Markdown links only allow http(s)/mailto/relative URLs
 
 ## Project layout

@@ -60,3 +60,17 @@ test('CLI exits non-zero on invalid input', () => {
   assert.equal(res.status, 1);
   assert.match(res.stderr.toString(), /title: required/);
 });
+
+test('CLI --dark and --size set the report defaults', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'prr-'));
+  execFileSync('node', [CLI, '-i', JSON.stringify(base), '-o', join(dir, 'a.html')]);
+  assert.match(readFileSync(join(dir, 'a.html'), 'utf8'), /<html lang="en" data-theme="light" data-size="m">/);
+  execFileSync('node', [CLI, '-i', JSON.stringify(base), '-o', join(dir, 'b.html'), '--dark', '--size', 'L']);
+  assert.match(readFileSync(join(dir, 'b.html'), 'utf8'), /<html lang="en" data-theme="dark" data-size="l">/);
+});
+
+test('CLI rejects an unknown --size', () => {
+  const res = spawnSync('node', [CLI, '-i', JSON.stringify(base), '--size', 'XL']);
+  assert.equal(res.status, 2);
+  assert.match(res.stderr.toString(), /--size must be S, M or L/);
+});
