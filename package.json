@@ -34,7 +34,7 @@
     "templates"
   ],
   "scripts": {
-    "example": "node bin/generate-pr-review-report.js -i examples/pr-482.json -o out/review-report-pr-482.html && node bin/generate-pr-review-report.js -i examples/pr-728-clean.json -o out/review-report-pr-728.html",
+    "example": "cd examples/sample-repo && node ../../bin/generate-pr-review-report.js -i ../pr-482.json -o ../../out/review-report-pr-482.html && node ../../bin/generate-pr-review-report.js -i ../pr-728-clean.json -o ../../out/review-report-pr-728.html",
     "test": "node --test test/",
     "prepublishOnly": "npm test"
   },

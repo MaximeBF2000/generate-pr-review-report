@@ -501,8 +501,8 @@
         const meta = [];
         if (data.author) meta.push(`**Author:** @${data.author}`);
         if (data.branch) meta.push(`**Branch:** \`${data.branch}\``);
-        if (data.files != null || data.added != null || data.deleted != null) {
-          meta.push(`**Changes:** ${[data.files != null ? `${data.files} files` : '', data.added != null ? `+${data.added}` : '', data.deleted != null ? `−${data.deleted}` : ''].filter(Boolean).join(' ')}`);
+        if (data.fileCount != null || data.added != null || data.deleted != null) {
+          meta.push(`**Changes:** ${[data.fileCount != null ? `${data.fileCount} files` : '', data.added != null ? `+${data.added}` : '', data.deleted != null ? `−${data.deleted}` : ''].filter(Boolean).join(' ')}`);
         }
         if (data.url) meta.push(`**Link:** ${data.url}`);
         if (meta.length) out.push(meta.join('  \n'), '');

@@ -136,10 +136,11 @@ function renderCodeBlock(fb, diff, fileText, hasFile) {
     if (snippet) ({ rows, cut } = snippet);
     label = rows ? 'Code' : 'File';
   }
-  if (!rows && !hasFile) return '';
+  // The file couldn't be read when the report was generated: still show the
+  // button, disabled, so the reader knows why there is no code.
   const viewButton = hasFile
     ? `<button type="button" class="view-file-button" data-action="view-file" aria-expanded="false" aria-controls="file-viewer-${fb.id}">${ICONS.file}<span>View full file</span></button>`
-    : '';
+    : `<button type="button" class="view-file-button" disabled title="${escapeHtml(`${fb.file} wasn't found when the report was generated. Give the feedback an absolute_path, or run the CLI from the repository.`)}">${ICONS.file}<span>File not available</span></button>`;
   const block = rows
     ? `<div class="code-diff" role="figure" aria-label="${diff ? 'Suggested code change' : 'Commented code'}">${rows.map((r) =>
       `<div class="code-line ${r.type}"><span class="line-num">${r.num ?? ''}</span><span class="code-sign">${sign[r.type]}</span><span class="code-text">${escapeHtml(r.code) || ' '}</span></div>`).join('')}${cut
@@ -279,7 +280,7 @@ export function renderReport(review, { generatedAt = new Date(), size = 'm', the
   // Data used by the in-page script to build the Markdown export.
   const data = {
     pr, title: review.title, url: review.url, branch: review.branch, author: review.author,
-    files: review.numberOfFilesChanged, added: review.numberOfLinesAdded, deleted: review.numberOfLinesDeleted,
+    fileCount: review.numberOfFilesChanged, added: review.numberOfLinesAdded, deleted: review.numberOfLinesDeleted,
     summary: review.summary,
     feedbacks: fbs.map((f) => {
       const diff = diffs.get(f.id);

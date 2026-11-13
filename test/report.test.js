@@ -83,21 +83,63 @@ test('suggestions are located in the real file, even with different indentation'
   assert.equal(locateSuggestion(parseSuggestion('-nope').rows, file, 1), null);
 });
 
-test('repository files are embedded once, and paths outside the root are refused', async () => {
-  const { loadRepositoryFiles } = await import('../src/files.js');
+test('review files are embedded once, and relative paths cannot climb out of the searched folders', async () => {
+  const { loadReviewFiles } = await import('../src/files.js');
   const root = fileURLToPath(new URL('../examples/sample-repo', import.meta.url));
-  const { files, warnings } = loadRepositoryFiles(root, ['src/models/notification-preferences.ts', 'src/models/notification-preferences.ts', '../../package.json', 'missing.ts']);
+  const { files, warnings } = loadReviewFiles(['src/models/notification-preferences.ts', 'src/models/notification-preferences.ts', '../../package.json', 'missing.ts'], { cwd: root });
   assert.deepEqual(Object.keys(files), ['src/models/notification-preferences.ts']);
   assert.equal(warnings.length, 2);
-  assert.ok(warnings.some((w) => w.includes('outside repository_root')));
+  assert.ok(warnings.some((w) => w.endsWith('../../package.json')));
 });
 
-test('CLI embeds file contents from repository_root for the file viewer', () => {
+test('relative paths are found from the current repository, including sibling repositories', async () => {
+  const { loadReviewFiles } = await import('../src/files.js');
+  const { mkdirSync, writeFileSync } = await import('node:fs');
+  const parent = mkdtempSync(join(tmpdir(), 'prr-repos-'));
+  mkdirSync(join(parent, 'app', 'src'), { recursive: true });
+  mkdirSync(join(parent, 'lib'), { recursive: true });
+  writeFileSync(join(parent, 'app', 'src', 'a.js'), 'a\n');
+  writeFileSync(join(parent, 'lib', 'package.json'), '{}\n');
+  // Run "from the app repo" with no absolute paths: like an agent that left them out.
+  const { files, warnings } = loadReviewFiles(['src/a.js', 'lib/package.json', 'nope.js'], { cwd: join(parent, 'app') });
+  assert.deepEqual(Object.keys(files).sort(), ['lib/package.json', 'src/a.js']);
+  assert.equal(warnings.length, 1);
+});
+
+test('every finding gets a code row: context lines when the file is found, a disabled button when not', () => {
+  const html = renderReport(validateReview({ ...base, feedbacks: [
+    { severity: 'nit', file: 'a.js', lineStart: 5, lineEnd: 5, text: 't', comment: 'c' },
+    { severity: 'nit', file: 'gone.js', lineStart: 1, text: 't', comment: 'c' },
+  ] }), { files: { 'a.js': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => `line ${n}`).join('\n') } });
+  const nums = [...html.matchAll(/class="code-line context( hl)?"><span class="line-num">(\d+)/g)].map((m) => m[2] + (m[1] ? '*' : ''));
+  assert.deepEqual(nums, ['2', '3', '4', '5*', '6', '7', '8']);
+  assert.match(html, /data-action="view-file"/);
+  assert.match(html, /disabled title="gone\.js wasn&#39;t found/);
+});
+
+test('CLI embeds file contents for the file viewer, found from the current directory', () => {
   const out = join(mkdtempSync(join(tmpdir(), 'prr-')), 'r.html');
-  execFileSync('node', [CLI, '-i', fileURLToPath(new URL('../examples/pr-482.json', import.meta.url)), '-o', out], { cwd: fileURLToPath(new URL('..', import.meta.url)) });
+  execFileSync('node', [CLI, '-i', fileURLToPath(new URL('../examples/pr-482.json', import.meta.url)), '-o', out], { cwd: fileURLToPath(new URL('../examples/sample-repo', import.meta.url)) });
   const html = readFileSync(out, 'utf8');
   assert.match(html, /data-action="view-file"/);
   const data = JSON.parse(html.match(/id="review-data">(.*?)<\/script>/s)[1]);
   assert.equal(Object.keys(data.files).length, 4);
   assert.equal(data.feedbacks.find((f) => f.file.endsWith('notification.service.ts')).hunk.start, 40);
+});
+
+test('a feedback absolute_path is read directly, even outside every searched folder', async () => {
+  const { loadReviewFiles } = await import('../src/files.js');
+  const { writeFileSync } = await import('node:fs');
+  const dir = mkdtempSync(join(tmpdir(), 'prr-abs-'));
+  writeFileSync(join(dir, 'x.js'), 'hello\n');
+  const { files } = loadReviewFiles([{ file: 'pkg/x.js', absolutePath: join(dir, 'x.js') }], { cwd: tmpdir() });
+  assert.equal(files['pkg/x.js'], 'hello\n');
+  assert.throws(() => validateReview({ ...base, feedbacks: [{ severity: 'nit', file: 'a', text: 't', comment: 'c', absolute_path: 'rel/a' }] }), /absolute_path: expected an absolute path/);
+});
+
+test('page data keeps the changed-files count apart from the embedded files', () => {
+  const html = renderReport(validateReview({ ...base, numberOfFilesChanged: 15 }), { files: {} });
+  const data = JSON.parse(html.match(/id="review-data">(.*?)<\/script>/s)[1]);
+  assert.equal(data.fileCount, 15);
+  assert.deepEqual(data.files, {});
 });

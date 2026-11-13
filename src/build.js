@@ -1,21 +1,19 @@
-import { loadRepositoryFiles } from './files.js';
+import { loadReviewFiles } from './files.js';
 import { renderReport } from './render.js';
 import { validateReview } from './validate.js';
 
-// Validates a parsed review, reads the files its findings point at (when it
-// has repository_root) and renders the HTML report. Throws ValidationError.
-export function buildReport(parsed, { size = 'm', theme = 'light' } = {}) {
+// Validates a parsed review, reads the files its findings point at and
+// renders the HTML report. Throws ValidationError.
+//
+// Files are read from each feedback's absolute_path (with a search fallback,
+// see files.js), so every finding gets its code context and full-file viewer
+// without the agent having to put any code in its JSON.
+export function buildReport(parsed, { size = 'm', theme = 'light', cwd = process.cwd() } = {}) {
   const review = validateReview(parsed);
-  // Full file contents for the in-report file viewer, read here so the agent
-  // never has to put whole files in its JSON.
-  let files = {};
-  let warnings = [];
-  if (review.repositoryRoot) {
-    const loaded = loadRepositoryFiles(review.repositoryRoot, review.feedbacks.map((f) => f.file));
-    files = loaded.files;
-    warnings = loaded.warnings;
-  }
-  return { review, warnings, html: renderReport(review, { size, theme, files }) };
+  const entries = review.feedbacks.map((f) => ({ file: f.file, absolutePath: f.absolutePath }));
+  const { files, warnings } = loadReviewFiles(entries, { cwd });
+  const fileStats = { loaded: Object.keys(files).length, total: new Set(entries.map((e) => e.file)).size };
+  return { review, warnings, fileStats, html: renderReport(review, { size, theme, files }) };
 }
 
 export function defaultReportName(review) {

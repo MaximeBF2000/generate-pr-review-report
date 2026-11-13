@@ -38,7 +38,7 @@ test('MCP: renders a review, keeps the HTML out of the model-visible content, sa
   const client = await connect();
   const output = join(mkdtempSync(join(tmpdir(), 'prr-mcp-')), 'r.html');
   const review = JSON.parse(readFileSync(example('pr-482.json'), 'utf8'));
-  review.repository_root = example('sample-repo');
+  for (const f of review.feedbacks) f.absolute_path = join(example('sample-repo'), f.file);
   const res = await client.callTool({ name: 'show_pr_review_report', arguments: { review, output } });
   assert.ok(!res.isError);
   assert.match(res.content[0].text, /4 comments: 1 must fix/);

@@ -51,17 +51,8 @@ export function validateReview(input) {
   const url = optionalString('url');
   if (url && !/^https?:\/\//i.test(url)) errors.push('url: must start with http:// or https://');
 
-  const rootField = input.repository_root ?? input.repositoryRoot;
-  let repositoryRoot;
-  if (rootField != null && rootField !== '') {
-    // Absolute path expected; a relative one is resolved from the current directory.
-    if (typeof rootField !== 'string') errors.push('repository_root: expected a path string');
-    else repositoryRoot = rootField.trim();
-  }
-
   const review = {
     key: key ?? undefined,
-    repositoryRoot,
     branch: optionalString('branch'),
     url,
     title: isNonEmptyString(input.title) ? input.title.trim() : '',
@@ -99,11 +90,18 @@ export function validateReview(input) {
 
       if (fb.title != null && typeof fb.title !== 'string') errors.push(`${at}.title: expected a string`);
       if (fb.suggestion != null && typeof fb.suggestion !== 'string') errors.push(`${at}.suggestion: expected a diff string`);
+      const absField = fb.absolute_path ?? fb.absolutePath;
+      let absolutePath;
+      if (absField != null && absField !== '') {
+        if (typeof absField !== 'string' || !(absField.startsWith('/') || /^[A-Za-z]:[\\/]/.test(absField))) errors.push(`${at}.absolute_path: expected an absolute path`);
+        else absolutePath = absField.trim();
+      }
 
       review.feedbacks.push({
         id: index + 1,
         severity,
         file: typeof fb.file === 'string' ? fb.file.trim().replace(/^\.\//, '') : '',
+        absolutePath,
         lineStart,
         lineEnd,
         title: typeof fb.title === 'string' && fb.title.trim() ? fb.title.trim() : deriveTitle(fb.comment ?? fb.text),

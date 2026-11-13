@@ -53,14 +53,19 @@ generate-pr-review-report -i review.json --dark --size L
 
 ### Full-file viewer
 
-When the JSON has `repository_root`, the CLI reads each file referenced by a feedback from that folder and embeds it in the report (each file once). The agent never has to repeat file contents in its JSON. In the report, every feedback with an embedded file shows a code block:
+The CLI reads the file of every feedback and embeds it in the report (each file once), so the agent never has to repeat code in its JSON. It looks for each file in this order:
+
+1. The feedback's `absolute_path`. This is exact, and works for reviews that span several repositories.
+2. The relative `file`, searched in the git repository of the current directory, then the current directory, each followed by its parent folder (for sibling repositories, like `other-repo/package.json`).
+
+The CLI prints `✓ Code context loaded for 6/6 files` (or a warning per missing file) on stderr. In the report, every feedback shows a code block:
 
 - **With a `suggestion`:** the suggested change as a diff ("Code suggestion").
 - **Without one:** the commented lines, highlighted, with 3 lines of context above and below, read from the file ("Code"). The agent doesn't have to copy any code for this.
 
 Next to the block's title, **View full file** (or a click on the file path) opens the whole file in its place. The commented lines are highlighted and the suggestion is shown in place as a diff.
 
-The CLI also finds each `suggestion` in the real file (ignoring indentation), so diff line numbers are exact even if `lineStart` is a little off. Files that are missing, binary, larger than 1 MB or outside `repository_root` are skipped with a warning on stderr. The report still generates, and those findings just have no viewer.
+The CLI also finds each `suggestion` in the real file (ignoring indentation), so diff line numbers are exact even if `lineStart` is a little off. Files that are missing, binary or larger than 1 MB are skipped with a warning on stderr. The report still generates, and those findings show a disabled "File not available" button.
 
 On success the absolute output path is printed to **stdout** (easy for an agent to capture). On invalid input it exits `1` and lists _every_ problem on stderr, e.g. `feedbacks[2].severity: expected one of "must_fix", "should_consider", "nit"` — so the agent can fix everything in one retry.
 
@@ -120,7 +125,6 @@ Prefer a temp file (or stdin) over inline `-i '{...}'`. Markdown in summaries of
   "key": 482, // PR number (or any string id) — optional
   "branch": "feature/my-feature", // optional
   "url": "https://github.com/u/r/pull/482", // optional — enables the "View PR" button
-  "repository_root": "/abs/path/to/repo", // optional — checkout of the PR branch; enables the full-file viewer
   "title": "Add user notification preferences", // required — the PR title
   "summary": "Markdown…", // required — overview, architecture, context
   "author": "jdoe", // optional (leading @ is stripped)
@@ -131,13 +135,14 @@ Prefer a temp file (or stdin) over inline `-i '{...}'`. Markdown in summaries of
     // required — use [] for a clean PR ("Ready to merge" view)
     {
       "file": "src/services/notification.service.ts", // required
+      "absolute_path": "/abs/path/to/repo/src/services/notification.service.ts", // optional — where the CLI reads the file from
       "severity": "must_fix", // required: must_fix | should_consider | nit
       "lineStart": 42, // optional
       "lineEnd": 47, // optional (defaults to lineStart)
       "title": "Handle potential null user", // optional — short headline; derived from `comment` if omitted
       "text": "Markdown explanation for you (can be verbose)", // required
       "comment": "Concise comment to post on the PR", // required — editable + copyable in the report
-      "suggestion": " context\n-removed\n+added" // optional — unified-diff lines; located in the real file when repository_root is set
+      "suggestion": " context\n-removed\n+added" // optional — unified-diff lines; located in the real file for exact line numbers
     }
   ]
 }
@@ -154,7 +159,7 @@ Severity aliases like `must-fix`, `Must fix`, `consider`, `nitpick` are accepted
 - Review comments filterable by severity, collapsible, each with a copy-path button, an **editable** suggested comment with a copy button, and an optional diff
 - Checkboxes choose which comments go into **Copy review** (copies the whole review as Markdown, including your edits)
 - Empty state "No feedback — PR looks good to go" when `feedbacks` is `[]`
-- Clicking a file path opens the full file, with the commented lines highlighted and the suggestion shown as a diff (needs `repository_root`)
+- Clicking a file path opens the full file, with the commented lines highlighted and the suggestion shown as a diff (the CLI reads the file, see above)
 - S / M / L text size switch and a light / dark theme toggle in the top bar, kept in the URL
 - All agent-provided text is HTML-escaped; Markdown links only allow http(s)/mailto/relative URLs
 

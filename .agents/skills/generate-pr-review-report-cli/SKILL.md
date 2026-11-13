@@ -30,7 +30,6 @@ Prefer it over the CLI: the host shows the report inside the conversation. Call 
   "key": 482,
   "branch": "feature/my-feature",
   "url": "https://github.com/owner/repo/pull/482",
-  "repository_root": "/abs/path/to/repo",
   "title": "Add user notification preferences",
   "summary": "Markdown: what the PR does, architecture, context.",
   "author": "jdoe",
@@ -40,6 +39,7 @@ Prefer it over the CLI: the host shows the report inside the conversation. Call 
   "feedbacks": [
     {
       "file": "src/services/notification.service.ts", // relative to the repo root
+      "absolute_path": "/abs/path/to/repo/src/services/notification.service.ts",
       "severity": "must_fix",
       "lineStart": 42,
       "lineEnd": 47,
@@ -55,7 +55,7 @@ Prefer it over the CLI: the host shows the report inside the conversation. Call 
 - **Required:** `title` (the PR title), `summary`, `feedbacks`. Each feedback needs `file`, `severity`, `text` and `comment`.
 - **`severity`:** `must_fix`, `should_consider` or `nit`.
 - **`feedbacks: []`** means a clean PR. The report then shows "No feedback — PR looks good to go".
-- **`repository_root`:** the absolute path of the local checkout of the PR branch. The CLI reads the files from there and shows them in full in the report, so never copy file contents into the JSON.
+- **`absolute_path`:** the file's absolute path on this machine, in the checkout of the PR branch. The CLI reads it to show the code and the full file, so never copy file contents into the JSON.
 - **Paths:** `file` is relative to the repo root. `lineStart`/`lineEnd` are line numbers in the new version of the file.
 - **`title` (in a feedback):** a short headline of about 3–7 words. If it's left out, the first sentence of `comment` is used.
 - **`suggestion`:** optional diff lines. Prefix each with `+` (added), `-` (removed) or a space (context). They're numbered from `lineStart`. Always a 3 lines of the file's code context above and below the change.

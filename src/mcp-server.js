@@ -21,7 +21,8 @@ const DEFAULT_DIR = join(tmpdir(), 'generate-pr-review-report');
 const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 
 const feedbackSchema = z.object({
-  file: z.string().describe('Path relative to the repository root.'),
+  file: z.string().describe('Path relative to the repository root, shown in the report.'),
+  absolute_path: z.string().optional().describe('Absolute path of that file on this machine. The server reads it to show code context and the full file; never copy file contents into the review.'),
   severity: z.string().describe('must_fix, should_consider or nit.'),
   lineStart: z.number().int().optional().describe('First commented line, in the new version of the file.'),
   lineEnd: z.number().int().optional().describe('Last commented line (defaults to lineStart).'),
@@ -35,7 +36,6 @@ const reviewSchema = z.object({
   key: z.union([z.number(), z.string()]).optional().describe('PR number or another id.'),
   branch: z.string().optional(),
   url: z.string().optional().describe('Link to the PR.'),
-  repository_root: z.string().optional().describe('Absolute path of the local checkout of the PR branch. The server reads the commented files from there for the full-file viewer; never copy file contents into the review.'),
   title: z.string().describe('The PR title.'),
   summary: z.string().describe('Markdown: what the PR does, architecture, context.'),
   author: z.string().optional(),

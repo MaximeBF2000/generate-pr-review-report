@@ -102,4 +102,6 @@ function runCli() {
   const n = report.review.feedbacks.length;
   process.stdout.write(`${outputPath}\n`);
   process.stderr.write(`✓ Report generated with ${n} comment${n === 1 ? '' : 's'}\n`);
+  const { loaded, total } = report.fileStats;
+  if (total) process.stderr.write(`${loaded === total ? '✓' : '!'} Code context loaded for ${loaded}/${total} file${total === 1 ? '' : 's'}\n`);
 }

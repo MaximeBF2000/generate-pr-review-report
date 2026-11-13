@@ -2,7 +2,6 @@
   "key": 482,
   "branch": "feature/notification-preferences",
   "url": "https://github.com/acme/app/pull/482",
-  "repository_root": "examples/sample-repo",
   "title": "Add user notification preferences",
   "summary": "This PR adds user notification preferences, allowing users to choose which types of notifications they receive (email, push, in-app).\n\n### Architectural changes\n\n- Introduces a new `NotificationPreferences` domain (model, service, and repository).\n- Adds a new API endpoint: `GET/PUT /api/users/:id/notification-preferences`.\n- Persists preferences in a new database table (`notification_preferences`) via a migration.\n- Integrates the preferences in the notification dispatch flow to filter out disabled channels.",
   "author": "jdoe",
