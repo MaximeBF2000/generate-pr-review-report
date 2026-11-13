@@ -2,13 +2,15 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import { loadRepositoryFiles } from '../src/files.js';
-import { renderReport } from '../src/render.js';
-import { validateReview, ValidationError } from '../src/validate.js';
+import { buildReport, defaultReportName } from '../src/build.js';
+import { ValidationError } from '../src/validate.js';
 
 const USAGE = `Usage: generate-pr-review-report -i <json|file|-> [-o <file.html>] [--size S|M|L] [--dark]
+       generate-pr-review-report mcp
 
 Generate a static, self-contained HTML report from an AI PR review JSON payload.
+"mcp" starts an MCP server (stdio) whose tool shows the report inside agent
+hosts that support MCP Apps (Claude, Claude Desktop, VS Code, ...).
 
 Options:
   -i, --input <value>   Review JSON. Accepts an inline JSON string, a path to a
@@ -41,68 +43,63 @@ function readInput(value) {
   return readFileSync(path, 'utf8');
 }
 
-function defaultOutput(review) {
-  const slug = (s) => String(s).toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '');
-  if (review.key != null && review.key !== '') return `review-report-pr-${slug(review.key)}.html`;
-  if (review.branch) return `review-report-${slug(review.branch)}.html`;
-  return 'review-report.html';
+if (process.argv[2] === 'mcp') {
+  // Loaded only here, so the plain CLI never needs the MCP SDK.
+  const { startMcpServer } = await import('../src/mcp-server.js');
+  await startMcpServer();
+} else {
+  runCli();
 }
 
-let args;
-try {
-  args = parseArgs({
-    options: {
-      input: { type: 'string', short: 'i' },
-      output: { type: 'string', short: 'o' },
-      size: { type: 'string', short: 's', default: 'M' },
-      dark: { type: 'boolean', short: 'd', default: false },
-      help: { type: 'boolean', short: 'h' },
-      version: { type: 'boolean', short: 'v' },
-    },
-    allowPositionals: false,
-  }).values;
-} catch (err) {
-  fail(`${err.message}\n\n${USAGE}`, 2);
+function runCli() {
+  let args;
+  try {
+    args = parseArgs({
+      options: {
+        input: { type: 'string', short: 'i' },
+        output: { type: 'string', short: 'o' },
+        size: { type: 'string', short: 's', default: 'M' },
+        dark: { type: 'boolean', short: 'd', default: false },
+        help: { type: 'boolean', short: 'h' },
+        version: { type: 'boolean', short: 'v' },
+      },
+      allowPositionals: false,
+    }).values;
+  } catch (err) {
+    fail(`${err.message}\n\n${USAGE}`, 2);
+  }
+
+  if (args.help) { process.stdout.write(`${USAGE}\n`); process.exit(0); }
+  if (args.version) {
+    const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+    process.stdout.write(`${pkg.version}\n`);
+    process.exit(0);
+  }
+  if (args.input == null) fail(`missing required --input\n\n${USAGE}`, 2);
+  const size = args.size.trim().toLowerCase();
+  if (!['s', 'm', 'l'].includes(size)) fail(`--size must be S, M or L (got "${args.size}")`, 2);
+
+  let parsed;
+  try {
+    parsed = JSON.parse(readInput(args.input));
+  } catch (err) {
+    fail(`could not parse input JSON: ${err.message}`);
+  }
+
+  let report;
+  try {
+    report = buildReport(parsed, { size, theme: args.dark ? 'dark' : 'light' });
+  } catch (err) {
+    if (err instanceof ValidationError) fail(err.message);
+    throw err;
+  }
+  for (const warning of report.warnings) process.stderr.write(`warning: ${warning}\n`);
+
+  const outputPath = resolve(args.output ?? defaultReportName(report.review));
+  mkdirSync(dirname(outputPath), { recursive: true });
+  writeFileSync(outputPath, report.html, 'utf8');
+
+  const n = report.review.feedbacks.length;
+  process.stdout.write(`${outputPath}\n`);
+  process.stderr.write(`✓ Report generated with ${n} comment${n === 1 ? '' : 's'}\n`);
 }
-
-if (args.help) { process.stdout.write(`${USAGE}\n`); process.exit(0); }
-if (args.version) {
-  const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
-  process.stdout.write(`${pkg.version}\n`);
-  process.exit(0);
-}
-if (args.input == null) fail(`missing required --input\n\n${USAGE}`, 2);
-const size = args.size.trim().toLowerCase();
-if (!['s', 'm', 'l'].includes(size)) fail(`--size must be S, M or L (got "${args.size}")`, 2);
-
-let parsed;
-try {
-  parsed = JSON.parse(readInput(args.input));
-} catch (err) {
-  fail(`could not parse input JSON: ${err.message}`);
-}
-
-let review;
-try {
-  review = validateReview(parsed);
-} catch (err) {
-  if (err instanceof ValidationError) fail(err.message);
-  throw err;
-}
-
-// Full file contents for the in-report file viewer, read here so the agent
-// never has to put whole files in its JSON.
-let files = {};
-if (review.repositoryRoot) {
-  const loaded = loadRepositoryFiles(review.repositoryRoot, review.feedbacks.map((f) => f.file));
-  files = loaded.files;
-  for (const warning of loaded.warnings) process.stderr.write(`warning: ${warning}\n`);
-}
-
-const outputPath = resolve(args.output ?? defaultOutput(review));
-mkdirSync(dirname(outputPath), { recursive: true });
-writeFileSync(outputPath, renderReport(review, { size, theme: args.dark ? 'dark' : 'light', files }), 'utf8');
-
-const n = review.feedbacks.length;
-process.stdout.write(`${outputPath}\n`);
-process.stderr.write(`✓ Report generated with ${n} comment${n === 1 ? '' : 's'}\n`);

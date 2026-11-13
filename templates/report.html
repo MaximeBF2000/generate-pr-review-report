@@ -107,7 +107,9 @@
 
     /* Shell */
     .app { max-width: 1040px; width: calc(100% - 36px); margin: 0 auto 36px; border: 1px solid var(--stroke); border-radius: 14px; background: var(--surface-app); padding: 20px 23px 25px; box-shadow: var(--shadow-app); }
-    .layout { display: grid; gap: 18px; }
+    /* minmax(0, 1fr): long code lines scroll inside their block instead of widening the page. */
+    .layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
+    .layout > *, .finding-body, .file-viewer { min-width: 0; }
     .card { background: var(--surface-card); border: 1px solid var(--stroke); border-radius: 12px; box-shadow: var(--shadow-card); }
 
     /* PR header */
@@ -204,6 +206,12 @@
     .comment-area:focus-within { border-color: var(--hover-border); }
     .comment-area textarea { border: none; resize: vertical; background: transparent; outline: none; min-height: 40px; width: 100%; line-height: 1.45; padding: 5px 7px; }
     .comment-area .copy-icon { width: 33px; height: 33px; margin-right: 3px; }
+    .code-label { flex-wrap: wrap; }
+    .view-file-button { display: inline-flex; align-items: center; gap: 5px; margin-left: 4px; padding: 3px 9px; border: 1px solid var(--stroke-item); border-radius: 7px; background: var(--surface); color: var(--purple-ink); font-size: calc(12px * var(--fs)); font-weight: 600; transition: background .15s, border-color .15s; }
+    .view-file-button:hover, .view-file-button[aria-expanded="true"] { background: var(--purple-bg); border-color: var(--purple-border); }
+    .code-diff .code-line.hl { background: var(--hl-bg); box-shadow: inset 3px 0 var(--purple); }
+    .code-diff .code-more .code-text { color: var(--soft); font-style: italic; }
+    .finding.file-open .finding-body > .code-diff { display: none; }
     .code-diff { border: 1px solid var(--diff-border); border-radius: 8px; overflow: auto; background: var(--diff-bg); font-family: var(--mono); font-size: calc(12px * var(--fs)); line-height: 1.6; }
     .code-line { display: flex; min-width: max-content; }
     .code-line.removed { background: var(--diff-del); }
@@ -218,7 +226,7 @@
     .file-location.clickable svg:last-child { transition: transform .15s; }
     .file-location.clickable[aria-expanded="true"] { background: var(--purple-bg); border-color: var(--purple-border); color: var(--purple-ink); }
     .file-location.clickable[aria-expanded="true"] svg:last-child { transform: rotate(180deg); }
-    .file-viewer { margin: 0 17px 14px 54px; border: 1px solid var(--diff-border); border-radius: 8px; overflow: hidden; background: var(--diff-bg); }
+    .file-viewer { margin: 0; border: 1px solid var(--diff-border); border-radius: 8px; overflow: hidden; background: var(--diff-bg); }
     .file-viewer-head { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; padding: 7px 8px 7px 12px; border-bottom: 1px solid var(--diff-border); background: var(--surface-sunken); font-size: calc(12px * var(--fs)); }
     .file-viewer-path { font-family: var(--mono); font-weight: 650; overflow-wrap: anywhere; }
     .file-viewer-meta { color: var(--soft); display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -250,6 +258,16 @@
 
     /* Toast */
     .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--toast-bg); color: #fff; padding: 11px 18px; border-radius: 10px; box-shadow: 0 10px 30px #0e13374d; opacity: 0; pointer-events: none; transition: .2s; z-index: 30; }
+    /* MCP app mode: loading state and the host-only buttons */
+    .app-only[hidden] { display: none !important; }
+    .mcp-app body { min-height: 0; }
+    .app-only .icon-collapse, .app-only[aria-pressed="true"] .icon-expand { display: none; }
+    .app-only[aria-pressed="true"] .icon-collapse { display: block; }
+    .app-loading { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 64px 16px; color: var(--muted); text-align: center; }
+    .app-loading.error { color: var(--ink); }
+    .app-loading .spinner { width: 26px; height: 26px; border: 3px solid var(--stroke); border-top-color: var(--purple); border-radius: 50%; animation: spin .8s linear infinite; }
+    .app-loading.error .spinner { display: none; }
+    @keyframes spin { to { transform: rotate(360deg); } }
     .toast.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
 
     @media (max-width: 720px) {
@@ -260,7 +278,6 @@
       .finding-top { flex-wrap: wrap; }
       .finding-title-row { flex-basis: 70%; }
       .finding-body { padding: 4px 12px 15px; }
-      .file-viewer { margin: 0 10px 12px; }
       .empty-state h3 { font-size: calc(22px * var(--fs)); }
       .empty-state p { font-size: calc(15px * var(--fs)); }
       .generated { display: none; }
@@ -281,7 +298,7 @@
     @media print {
       body { background: #fff; }
       .app { border: 0; box-shadow: none; width: 100%; }
-      .view-controls, .copy-icon, .selection, .filters, [data-action="copy-review"], .chevron { display: none !important; }
+      .view-controls, .app-only, .copy-icon, .selection, .filters, [data-action="copy-review"], .chevron { display: none !important; }
       .finding { break-inside: avoid; }
       .finding-body { display: block !important; }
     }
@@ -306,6 +323,14 @@
           <svg class="icon-moon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z"/></svg>
           <svg class="icon-sun" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></svg>
         </button>
+        <!-- Only shown when the report runs as an MCP app inside an agent host. -->
+        <button type="button" class="theme-toggle app-only" data-action="app-download" title="Download the HTML report" aria-label="Download the HTML report" hidden>
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></svg>
+        </button>
+        <button type="button" class="theme-toggle app-only" data-action="app-fullscreen" title="Expand to full screen" aria-label="Expand to full screen" aria-pressed="false" hidden>
+          <svg class="icon-expand" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M10 20H4v-6M20 4l-6.5 6.5M4 20l6.5-6.5"/></svg>
+          <svg class="icon-collapse" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10h-6V4M4 14h6v6M14 10l6.5-6.5M10 14l-6.5 6.5"/></svg>
+        </button>
       </div>
     </div>
   </header>
@@ -321,10 +346,17 @@
   <script type="application/json" id="review-data">{{DATA_JSON}}</script>
   <script>
     (() => {
-      const data = JSON.parse(document.getElementById('review-data').textContent);
       const root = document.documentElement;
-      const findings = [...document.querySelectorAll('.finding')];
-      let toastTimer;
+      let data, findings = [], toastTimer;
+
+      // Reads the review data and the rendered findings from the page. Runs on
+      // load for a static report; in an MCP app it runs again each time a new
+      // report is put into the page.
+      function load() {
+        data = JSON.parse(document.getElementById('review-data').textContent);
+        findings = [...document.querySelectorAll('.finding')];
+        syncViewControls();
+      }
 
       // View preferences (size, theme): generated defaults from the CLI flags,
       // overridden by ?size= / ?theme= in the URL (read in <head>).
@@ -335,7 +367,6 @@
         toggle.setAttribute('aria-pressed', String(dark));
         toggle.title = dark ? 'Switch to light mode' : 'Switch to dark mode';
       }
-      syncViewControls();
 
       // Keep ?size= and ?theme= in the address bar so a link or bookmark reopens the same view.
       function saveViewToUrl() {
@@ -388,21 +419,28 @@
           <div class="file-viewer-code" role="region" aria-label="Full content of ${esc(f.file)}" tabindex="0">${rows.join('')}</div>`;
       }
 
-      function toggleFileViewer(article, open) {
-        const button = article.querySelector('[data-action="view-file"]');
+      // The full file opens in the finding body, in place of the snippet / diff.
+      // Both the path in the header and the "View full file" button control it.
+      function toggleFileViewer(article, open, reveal = false) {
         const viewer = article.querySelector('.file-viewer');
+        if (!viewer) return;
         const show = open ?? viewer.hidden;
         if (show && !viewer.childElementCount) {
           const f = data.feedbacks.find((x) => String(x.id) === article.dataset.id);
           viewer.innerHTML = buildFileViewer(f);
         }
+        if (show && !article.classList.contains('expanded')) toggle(article);
         viewer.hidden = !show;
-        button.setAttribute('aria-expanded', String(show));
+        article.classList.toggle('file-open', show);
+        article.querySelectorAll('[data-action="view-file"]').forEach((b) => b.setAttribute('aria-expanded', String(show)));
+        const label = article.querySelector('.view-file-button span');
+        if (label) label.textContent = show ? 'Hide full file' : 'View full file';
         if (show) {
           // Bring the commented lines (or the suggestion) into view.
           const code = viewer.querySelector('.file-viewer-code');
           const target = code.querySelector('.hl, .added, .removed');
           if (target) code.scrollTop = Math.max(0, target.offsetTop - 48);
+          if (reveal) viewer.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
         }
       }
 
@@ -484,13 +522,13 @@
 
       document.addEventListener('click', async (event) => {
         const target = event.target.closest('[data-action]');
-        if (!target || target.disabled) return;
+        if (!target || target.disabled || !data) return;
         const action = target.dataset.action;
         if (action === 'toggle') toggle(target.closest('.finding'));
         else if (action === 'filter') setFilter(target.dataset.filter);
         else if (action === 'size') { root.dataset.size = target.dataset.size; syncViewControls(); saveViewToUrl(); }
         else if (action === 'theme') { root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark'; syncViewControls(); saveViewToUrl(); }
-        else if (action === 'view-file') toggleFileViewer(target.closest('.finding'));
+        else if (action === 'view-file') toggleFileViewer(target.closest('.finding'), undefined, target.classList.contains('file-location'));
         else if (action === 'close-file') toggleFileViewer(target.closest('.finding'), false);
         else if (action === 'copy') {
           const value = target.dataset.copyFrom ? document.getElementById(target.dataset.copyFrom).value : target.dataset.copy;
@@ -501,7 +539,11 @@
           toast(await copyText(buildMarkdown()) ? 'Review copied as Markdown' : 'Could not copy automatically.');
         }
       });
+
+      window.prReport = { load, toast, syncViewControls };
+      if (document.getElementById('review-data').textContent.trim()) load();
     })();
   </script>
+  {{APP_SCRIPT}}
 </body>
 </html>

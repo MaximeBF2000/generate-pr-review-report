@@ -1,7 +1,7 @@
 {
   "name": "generate-pr-review-report",
   "version": "1.0.0",
-  "description": "Generate a static, self-contained HTML report from an AI PR review JSON payload.",
+  "description": "Generate a static, self-contained HTML report from an AI PR review JSON payload, or show it inside agent hosts as an MCP App.",
   "keywords": [
     "code-review",
     "pull-request",
@@ -10,7 +10,9 @@
     "html",
     "cli",
     "github",
-    "agent"
+    "agent",
+    "mcp",
+    "mcp-app"
   ],
   "homepage": "https://github.com/MaximeBF2000/generate-pr-review-report#readme",
   "bugs": {
@@ -37,6 +39,14 @@
     "prepublishOnly": "npm test"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/ext-apps": "^2.0.4",
+    "@modelcontextprotocol/server": "^2.4.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "^2.4.0"
   }
 }

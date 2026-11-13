@@ -5,8 +5,10 @@
 
 CLI tool for Code Review agents to render their report in a clean HTML template.
 
-The CLI turns a structured JSON produced by an AI code-review agent into a **single, self-contained HTML file** (no external assets, no network calls). Zero dependencies - Node ≥ 18.
+The CLI turns a structured JSON produced by an AI code-review agent into a **single, self-contained HTML file** (no external assets, no network calls). Node ≥ 20. The CLI itself loads no dependencies; only the optional MCP server uses the official MCP SDK.
 Easy review for the human that reads the report.
+
+It can also run as an **MCP server with an MCP App**, so the report opens right inside the agent's conversation (see [Show the report inside your agent](#show-the-report-inside-your-agent-mcp-app)).
 
 ![Example review report](./ai-pr-review-preview.png)
 
@@ -51,11 +53,54 @@ generate-pr-review-report -i review.json --dark --size L
 
 ### Full-file viewer
 
-When the JSON has `repository_root`, the CLI reads each file referenced by a feedback from that folder and embeds it in the report (each file once). The agent never has to repeat file contents in its JSON. In the report, clicking a feedback's file path opens the whole file, with the commented lines highlighted and the code suggestion shown in place as a diff.
+When the JSON has `repository_root`, the CLI reads each file referenced by a feedback from that folder and embeds it in the report (each file once). The agent never has to repeat file contents in its JSON. In the report, every feedback with an embedded file shows a code block:
+
+- **With a `suggestion`:** the suggested change as a diff ("Code suggestion").
+- **Without one:** the commented lines, highlighted, with 3 lines of context above and below, read from the file ("Code"). The agent doesn't have to copy any code for this.
+
+Next to the block's title, **View full file** (or a click on the file path) opens the whole file in its place. The commented lines are highlighted and the suggestion is shown in place as a diff.
 
 The CLI also finds each `suggestion` in the real file (ignoring indentation), so diff line numbers are exact even if `lineStart` is a little off. Files that are missing, binary, larger than 1 MB or outside `repository_root` are skipped with a warning on stderr. The report still generates, and those findings just have no viewer.
 
 On success the absolute output path is printed to **stdout** (easy for an agent to capture). On invalid input it exits `1` and lists _every_ problem on stderr, e.g. `feedbacks[2].severity: expected one of "must_fix", "should_consider", "nit"` — so the agent can fix everything in one retry.
+
+## Show the report inside your agent (MCP App)
+
+`generate-pr-review-report mcp` starts an [MCP](https://modelcontextprotocol.io) server over stdio. Its tool returns the report as an [MCP App](https://modelcontextprotocol.io/docs/extensions/apps), so hosts that support MCP Apps show the interactive report in the conversation instead of a file path.
+
+Add it to your agent:
+
+```bash
+claude mcp add pr-review-report -- npx -y generate-pr-review-report mcp
+```
+
+```bash
+codex mcp add pr-review-report -- npx -y generate-pr-review-report mcp
+```
+
+Or in any host's JSON config (Claude Desktop, VS Code, …):
+
+```json
+{
+  "mcpServers": {
+    "pr-review-report": { "command": "npx", "args": ["-y", "generate-pr-review-report", "mcp"] }
+  }
+}
+```
+
+**Tool `show_pr_review_report`**, called by the agent at the end of a review:
+
+| Argument | Description |
+| --- | --- |
+| `review` | The review object ([JSON schema](#json-schema)). Give this or `path`. |
+| `path` | Absolute path to a review `.json` file, or to an `.html` report already made by the CLI. |
+| `output` | Where to save the HTML. Defaults to the system temp folder (`<tmp>/generate-pr-review-report/`). |
+| `size` / `dark` | Same as `--size` / `--dark`. In the app, the host's light/dark theme wins. |
+
+- The report is always saved as an HTML file, and the tool's text result gives its path. Hosts without MCP Apps support (terminal agents, for example) still get a usable report.
+- The HTML goes to the app in the result's `_meta`, so it never fills the model's context. The model only sees a one-line summary (comment counts and path). If a host drops `_meta`, the app fetches the HTML through `get_pr_review_report_html`, a tool only the app can call.
+- Invalid reviews return every error at once, as the CLI does.
+- Inside the host, the report works as it does in a browser (filters, file viewer, editable comments, copy buttons). Links open through the host. Two extra buttons appear in the top bar: **Download** (saves the HTML through the host) and **Full screen**, when the host offers them.
 
 ## Using it from an AI agent skill
 
@@ -121,6 +166,9 @@ src/validate.js                    schema validation + normalization
 src/markdown.js                    tiny safe Markdown renderer
 src/render.js                      builds the HTML fragments, fills the template
 templates/report.html              page shell: CSS + interaction script
+templates/mcp-app.js               MCP Apps bridge, inlined into the page when shown in an agent host
+src/build.js                       validate + read files + render (shared by the CLI and the MCP server)
+src/mcp-server.js                  MCP server: report tool and the ui:// app resource
 src/files.js                       reads repository files for the file viewer
 examples/                          sample inputs (with findings / clean PR) + sample-repo/ for the file viewer
 ```

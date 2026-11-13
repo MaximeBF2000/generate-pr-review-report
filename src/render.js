@@ -89,23 +89,68 @@ function suggestionStart(fb, rows, headerStart, fileText) {
   return fb.lineStart ?? null;
 }
 
-function renderDiff(rows, start) {
+function numberDiffRows(rows, start) {
   let oldLine = start;
   let newLine = start;
-  const sign = { added: '+', removed: '−', context: '' };
-  const numbered = rows.map((r) => {
+  return rows.map((r) => {
     let num = null;
     if (r.type === 'added') { num = newLine; if (newLine != null) newLine++; }
     else if (r.type === 'removed') { num = oldLine; if (oldLine != null) oldLine++; }
     else { num = newLine; if (oldLine != null) oldLine++; if (newLine != null) newLine++; }
     return { ...r, num };
   });
-  return `<div class="field-label">${ICONS.diff}Code suggestion</div>
-            <div class="code-diff" role="figure" aria-label="Suggested code change">${numbered.map((r) =>
-    `<div class="code-line ${r.type}"><span class="line-num">${r.num ?? ''}</span><span class="code-sign">${sign[r.type]}</span><span class="code-text">${escapeHtml(r.code) || ' '}</span></div>`).join('')}</div>`;
 }
 
-function renderFinding(fb, hasFile, diff) {
+export const SNIPPET_CONTEXT = 3;
+const SNIPPET_MAX_TARGET_LINES = 30;
+
+// Without a suggestion: the commented lines plus a few lines of context,
+// read from the real file. Long ranges are cut, the full file viewer has the rest.
+function snippetRows(fb, fileText) {
+  if (fileText == null || fb.lineStart == null) return null;
+  const lines = fileText.split('\n');
+  if (lines.length > 1 && lines[lines.length - 1] === '') lines.pop();
+  if (fb.lineStart > lines.length) return null;
+  const targetEnd = Math.min(fb.lineEnd, fb.lineStart + SNIPPET_MAX_TARGET_LINES - 1);
+  const from = Math.max(1, fb.lineStart - SNIPPET_CONTEXT);
+  const to = Math.min(lines.length, targetEnd + SNIPPET_CONTEXT);
+  const rows = [];
+  for (let n = from; n <= to; n++) {
+    rows.push({ type: n >= fb.lineStart && n <= fb.lineEnd ? 'context hl' : 'context', num: n, code: lines[n - 1] });
+  }
+  return { rows, cut: fb.lineEnd > targetEnd ? fb.lineEnd - targetEnd : 0 };
+}
+
+// The code block of a finding: the suggestion as a diff, or else the commented
+// lines from the file, with a "View full file" button when the file is embedded.
+function renderCodeBlock(fb, diff, fileText, hasFile) {
+  const sign = { added: '+', removed: '−', context: '', 'context hl': '' };
+  let label;
+  let rows = null;
+  let cut = 0;
+  if (diff) {
+    label = 'Code suggestion';
+    rows = numberDiffRows(diff.rows, diff.start);
+  } else {
+    const snippet = snippetRows(fb, fileText);
+    if (snippet) ({ rows, cut } = snippet);
+    label = rows ? 'Code' : 'File';
+  }
+  if (!rows && !hasFile) return '';
+  const viewButton = hasFile
+    ? `<button type="button" class="view-file-button" data-action="view-file" aria-expanded="false" aria-controls="file-viewer-${fb.id}">${ICONS.file}<span>View full file</span></button>`
+    : '';
+  const block = rows
+    ? `<div class="code-diff" role="figure" aria-label="${diff ? 'Suggested code change' : 'Commented code'}">${rows.map((r) =>
+      `<div class="code-line ${r.type}"><span class="line-num">${r.num ?? ''}</span><span class="code-sign">${sign[r.type]}</span><span class="code-text">${escapeHtml(r.code) || ' '}</span></div>`).join('')}${cut
+      ? `<div class="code-line context code-more"><span class="line-num"></span><span class="code-sign"></span><span class="code-text">… ${cut} more commented line${cut === 1 ? '' : 's'}</span></div>` : ''}</div>`
+    : '';
+  return `<div class="field-label code-label">${diff ? ICONS.diff : ICONS.file}${label}${viewButton}</div>
+            ${block}
+            ${hasFile ? `<div class="file-viewer" id="file-viewer-${fb.id}" hidden></div>` : ''}`;
+}
+
+function renderFinding(fb, hasFile, diff, fileText) {
   const sev = SEVERITY[fb.severity];
   const location = locationLabel(fb);
   const locationHtml = hasFile
@@ -123,7 +168,6 @@ function renderFinding(fb, hasFile, diff) {
             </div>
             <label class="selection" title="Include in copied review"><input type="checkbox" checked data-action="select" aria-label="Include “${escapeHtml(fb.title)}” in copied review" /></label>
           </div>
-          ${hasFile ? `<div class="file-viewer" id="file-viewer-${fb.id}" hidden></div>` : ''}
           <div class="finding-body" id="finding-body-${fb.id}">
             <div class="explanation md">${renderMarkdown(fb.text)}</div>
             <div class="field-label">${ICONS.comment}Suggested comment</div>
@@ -131,7 +175,7 @@ function renderFinding(fb, hasFile, diff) {
               <textarea id="comment-${fb.id}" rows="${Math.min(8, Math.max(2, Math.ceil(fb.comment.length / 110) + (fb.comment.match(/\n/g)?.length ?? 0)))}" aria-label="Suggested comment for ${escapeHtml(fb.title)}" spellcheck="true">${escapeHtml(fb.comment)}</textarea>
               <button type="button" class="copy-icon" title="Copy comment" aria-label="Copy comment" data-action="copy" data-copy-from="comment-${fb.id}">${ICONS.copy}${ICONS.check}</button>
             </div>
-            ${diff ? renderDiff(diff.rows, diff.start) : ''}
+            ${renderCodeBlock(fb, diff, fileText, hasFile)}
           </div>
         </article>`;
 }
@@ -213,7 +257,7 @@ export function renderReport(review, { generatedAt = new Date(), size = 'm', the
     : `${readyPill}${copyReviewBtn}`;
 
   const body = fbs.length
-    ? `<div id="findings">${fbs.map((f) => renderFinding(f, Object.hasOwn(usedFiles, f.file), diffs.get(f.id))).join('')}
+    ? `<div id="findings">${fbs.map((f) => renderFinding(f, Object.hasOwn(usedFiles, f.file), diffs.get(f.id), usedFiles[f.file])).join('')}
         <div class="empty-filter" hidden>No comments match this filter.</div>
       </div>`
     : `<div class="empty-state">
@@ -264,6 +308,33 @@ export function renderReport(review, { generatedAt = new Date(), size = 'm', the
     DATA_JSON: dataJson,
     SIZE: size,
     THEME: theme,
+    APP_SCRIPT: '',
   };
+  return fillTemplate(template, replacements);
+}
+
+function fillTemplate(template, replacements) {
   return template.replace(/\{\{([A-Z_]+)\}\}/g, (match, name) => (name in replacements ? replacements[name] : match));
+}
+
+const APP_BRIDGE_PATH = fileURLToPath(new URL('../templates/mcp-app.js', import.meta.url));
+
+// The page an MCP host shows for the report tool: the report template with
+// no review in it yet, plus a script that talks to the host and puts each
+// report the tool returns into the page.
+export function renderAppShell() {
+  const template = readFileSync(TEMPLATE_PATH, 'utf8');
+  const loading = `<div class="app-loading" id="app-loading"><span class="spinner" aria-hidden="true"></span><p>Loading the review report…</p></div>`;
+  return fillTemplate(template, {
+    PAGE_TITLE: 'AI PR Review',
+    GENERATED_AT: '',
+    GENERATED_ISO: '',
+    HEADER: loading,
+    SUMMARY: '',
+    REVIEWS: '',
+    DATA_JSON: '',
+    SIZE: 'm',
+    THEME: 'light',
+    APP_SCRIPT: `<script>\n${readFileSync(APP_BRIDGE_PATH, 'utf8')}\n</script>`,
+  });
 }

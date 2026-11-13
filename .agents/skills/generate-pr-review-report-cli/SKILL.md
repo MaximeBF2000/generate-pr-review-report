@@ -7,6 +7,10 @@ description: Renders a finished pull request review as a self-contained HTML rep
 
 `generate-pr-review-report` turns a review JSON file into one standalone HTML report: a PR header, a Markdown summary, and the review comments, each with a severity, location, explanation, editable comment and optional diff.
 
+## If the `show_pr_review_report` MCP tool is available
+
+Prefer it over the CLI: the host shows the report inside the conversation. Call it with the review object (format below) in `review`. If the result is an error, fix every problem it lists and call it again. Then tell the user where the report was saved (the path in the result).
+
 ## Usage
 
 1. Write the review JSON to a temporary file. Do not pass inline JSON: Markdown quotes and backticks break shell quoting.
