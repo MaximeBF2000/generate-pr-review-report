@@ -44,40 +44,73 @@ function prLabel(review) {
 }
 
 // Parses a unified-diff-like suggestion ("+added", "-removed", " context")
-// into rows with line numbers anchored on the finding's lineStart.
-function parseSuggestion(suggestion, lineStart) {
-  let oldLine = lineStart ?? null;
-  let newLine = lineStart ?? null;
+// into rows. A "@@ -a,b +c,d @@" header, if present, gives the start line.
+export function parseSuggestion(suggestion) {
   const rows = [];
+  let headerStart = null;
   for (const raw of suggestion.split(/\r?\n/)) {
     if (/^(@@|\+\+\+ |--- |\\ No newline)/.test(raw)) {
-      const hunk = raw.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)/);
-      if (hunk) { oldLine = Number(hunk[1]); newLine = Number(hunk[2]); }
+      const hunk = raw.match(/^@@ -(\d+)/);
+      if (hunk && headerStart == null) headerStart = Number(hunk[1]);
       continue;
     }
     const sign = raw[0];
-    if (sign === '+') { rows.push({ type: 'added', num: newLine, code: raw.slice(1) }); if (newLine != null) newLine++; }
-    else if (sign === '-') { rows.push({ type: 'removed', num: oldLine, code: raw.slice(1) }); if (oldLine != null) oldLine++; }
-    else {
-      rows.push({ type: 'context', num: newLine, code: sign === ' ' ? raw.slice(1) : raw });
-      if (oldLine != null) oldLine++;
-      if (newLine != null) newLine++;
-    }
+    if (sign === '+') rows.push({ type: 'added', code: raw.slice(1) });
+    else if (sign === '-') rows.push({ type: 'removed', code: raw.slice(1) });
+    else rows.push({ type: 'context', code: sign === ' ' ? raw.slice(1) : raw });
   }
-  return rows;
+  return { rows, headerStart };
 }
 
-function renderDiff(fb) {
-  const rows = parseSuggestion(fb.suggestion, fb.lineStart);
+// Finds the line where the suggestion's "before" side (context + removed
+// lines) starts in the real file. Indentation differences are tolerated, and
+// the match closest to the finding's lineStart wins. Returns null if absent.
+export function locateSuggestion(rows, fileText, lineStart) {
+  const before = rows.filter((r) => r.type !== 'added').map((r) => r.code.trim());
+  if (fileText == null || !before.length) return null;
+  const lines = fileText.split('\n');
+  let best = null;
+  for (let i = 0; i + before.length <= lines.length; i++) {
+    let ok = true;
+    for (let j = 0; j < before.length && ok; j++) ok = lines[i + j].trim() === before[j];
+    if (ok && (best == null || Math.abs(i + 1 - (lineStart ?? 1)) < Math.abs(best - (lineStart ?? 1)))) best = i + 1;
+  }
+  return best;
+}
+
+// Start line of the suggestion in the file: located in the real file when
+// possible, else the diff header, else the finding's lineStart.
+function suggestionStart(fb, rows, headerStart, fileText) {
+  const located = locateSuggestion(rows, fileText, fb.lineStart);
+  if (located != null) return located;
+  if (headerStart != null) return headerStart;
+  // Pure additions with a file: insert right after the commented range.
+  if (fileText != null && rows.every((r) => r.type === 'added') && fb.lineEnd != null) return fb.lineEnd + 1;
+  return fb.lineStart ?? null;
+}
+
+function renderDiff(rows, start) {
+  let oldLine = start;
+  let newLine = start;
   const sign = { added: '+', removed: '−', context: '' };
+  const numbered = rows.map((r) => {
+    let num = null;
+    if (r.type === 'added') { num = newLine; if (newLine != null) newLine++; }
+    else if (r.type === 'removed') { num = oldLine; if (oldLine != null) oldLine++; }
+    else { num = newLine; if (oldLine != null) oldLine++; if (newLine != null) newLine++; }
+    return { ...r, num };
+  });
   return `<div class="field-label">${ICONS.diff}Code suggestion</div>
-            <div class="code-diff" role="figure" aria-label="Suggested code change">${rows.map((r) =>
+            <div class="code-diff" role="figure" aria-label="Suggested code change">${numbered.map((r) =>
     `<div class="code-line ${r.type}"><span class="line-num">${r.num ?? ''}</span><span class="code-sign">${sign[r.type]}</span><span class="code-text">${escapeHtml(r.code) || ' '}</span></div>`).join('')}</div>`;
 }
 
-function renderFinding(fb) {
+function renderFinding(fb, hasFile, diff) {
   const sev = SEVERITY[fb.severity];
   const location = locationLabel(fb);
+  const locationHtml = hasFile
+    ? `<button type="button" class="file-location clickable" data-action="view-file" aria-expanded="false" aria-controls="file-viewer-${fb.id}" title="Show the full file">${ICONS.file}${escapeHtml(location)}${ICONS.chevron}</button>`
+    : `<span class="file-location" title="${escapeHtml(location)}">${escapeHtml(location)}</span>`;
   return `
         <article class="finding expanded" id="finding-${fb.id}" data-id="${fb.id}" data-severity="${sev.className}">
           <div class="finding-top">
@@ -85,11 +118,12 @@ function renderFinding(fb) {
             <span class="severity ${sev.className}"><span class="dot ${sev.className}"></span>${sev.label}</span>
             <div class="finding-title-row">
               <button type="button" class="finding-name" data-action="toggle">${escapeHtml(fb.title)}</button>
-              <span class="file-location" title="${escapeHtml(location)}">${escapeHtml(location)}</span>
+              ${locationHtml}
               <button type="button" class="copy-icon" title="Copy file path" aria-label="Copy file path" data-action="copy" data-copy="${escapeHtml(location)}">${ICONS.copy}${ICONS.check}</button>
             </div>
             <label class="selection" title="Include in copied review"><input type="checkbox" checked data-action="select" aria-label="Include “${escapeHtml(fb.title)}” in copied review" /></label>
           </div>
+          ${hasFile ? `<div class="file-viewer" id="file-viewer-${fb.id}" hidden></div>` : ''}
           <div class="finding-body" id="finding-body-${fb.id}">
             <div class="explanation md">${renderMarkdown(fb.text)}</div>
             <div class="field-label">${ICONS.comment}Suggested comment</div>
@@ -97,7 +131,7 @@ function renderFinding(fb) {
               <textarea id="comment-${fb.id}" rows="${Math.min(8, Math.max(2, Math.ceil(fb.comment.length / 110) + (fb.comment.match(/\n/g)?.length ?? 0)))}" aria-label="Suggested comment for ${escapeHtml(fb.title)}" spellcheck="true">${escapeHtml(fb.comment)}</textarea>
               <button type="button" class="copy-icon" title="Copy comment" aria-label="Copy comment" data-action="copy" data-copy-from="comment-${fb.id}">${ICONS.copy}${ICONS.check}</button>
             </div>
-            ${fb.suggestion ? renderDiff(fb) : ''}
+            ${diff ? renderDiff(diff.rows, diff.start) : ''}
           </div>
         </article>`;
 }
@@ -113,13 +147,21 @@ const EMPTY_ILLUSTRATION = `<svg class="empty-illustration" viewBox="0 0 320 190
 export const SIZES = ['s', 'm', 'l'];
 export const THEMES = ['light', 'dark'];
 
-export function renderReport(review, { generatedAt = new Date(), size = 'm', theme = 'light' } = {}) {
+export function renderReport(review, { generatedAt = new Date(), size = 'm', theme = 'light', files = {} } = {}) {
   if (!SIZES.includes(size)) throw new Error(`size must be one of ${SIZES.join(', ')}`);
   if (!THEMES.includes(theme)) throw new Error(`theme must be one of ${THEMES.join(', ')}`);
   const template = readFileSync(TEMPLATE_PATH, 'utf8');
   const fbs = review.feedbacks;
   const counts = Object.fromEntries(Object.keys(SEVERITY).map((k) => [k, fbs.filter((f) => f.severity === k).length]));
   const pr = prLabel(review);
+  const diffs = new Map(fbs.filter((f) => f.suggestion).map((f) => {
+    const { rows, headerStart } = parseSuggestion(f.suggestion);
+    const fileText = Object.hasOwn(files, f.file) ? files[f.file] : undefined;
+    // Only place the diff inside the full file when we know exactly where it goes.
+    const located = fileText != null && (locateSuggestion(rows, fileText, f.lineStart) != null || rows.every((r) => r.type === 'added'));
+    return [f.id, { rows, start: suggestionStart(f, rows, headerStart, fileText), located }];
+  }));
+  const usedFiles = Object.fromEntries(Object.entries(files).filter(([path]) => fbs.some((f) => f.file === path)));
 
   const meta = [];
   if (review.author) meta.push(`<span>by @${escapeHtml(review.author)}</span>`);
@@ -171,7 +213,7 @@ export function renderReport(review, { generatedAt = new Date(), size = 'm', the
     : `${readyPill}${copyReviewBtn}`;
 
   const body = fbs.length
-    ? `<div id="findings">${fbs.map(renderFinding).join('')}
+    ? `<div id="findings">${fbs.map((f) => renderFinding(f, Object.hasOwn(usedFiles, f.file), diffs.get(f.id))).join('')}
         <div class="empty-filter" hidden>No comments match this filter.</div>
       </div>`
     : `<div class="empty-state">
@@ -195,7 +237,18 @@ export function renderReport(review, { generatedAt = new Date(), size = 'm', the
     pr, title: review.title, url: review.url, branch: review.branch, author: review.author,
     files: review.numberOfFilesChanged, added: review.numberOfLinesAdded, deleted: review.numberOfLinesDeleted,
     summary: review.summary,
-    feedbacks: fbs.map((f) => ({ id: f.id, severity: SEVERITY[f.severity].label, title: f.title, location: locationLabel(f), text: f.text, comment: f.comment, suggestion: f.suggestion })),
+    feedbacks: fbs.map((f) => {
+      const diff = diffs.get(f.id);
+      return {
+        id: f.id, severity: SEVERITY[f.severity].label, title: f.title, location: locationLabel(f),
+        file: f.file, lineStart: f.lineStart, lineEnd: f.lineEnd,
+        text: f.text, comment: f.comment, suggestion: f.suggestion,
+        // Where the suggestion goes in the full file, for the file viewer.
+        hunk: diff?.located && diff.start != null ? { start: diff.start, rows: diff.rows.map((r) => [r.type, r.code]) } : undefined,
+      };
+    }),
+    // Each file once, however many findings point at it.
+    files: usedFiles,
   };
   // Escape "<" so no string in the payload can close the <script> tag.
   const dataJson = JSON.stringify(data).replace(/</g, '\\u003c').replace(/[\u2028\u2029]/g, (c) => `\\u${c.charCodeAt(0).toString(16)}`);

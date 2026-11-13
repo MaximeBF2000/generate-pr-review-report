@@ -44,7 +44,7 @@ test('validation normalizes severity aliases and sorts by severity', () => {
 
 test('rendered report cannot break out of the data script tag', () => {
   const html = renderReport(validateReview({ ...base, summary: '</script><img src=x onerror=alert(1)>' }));
-  assert.equal(html.match(/<\/script>/g).length, 2);
+  assert.equal(html.match(/<\/script>/g).length, 3); // head view script, data, app script
   assert.ok(!html.includes('<img src=x'));
   assert.ok(!html.includes('{{'));
 });
@@ -73,4 +73,31 @@ test('CLI rejects an unknown --size', () => {
   const res = spawnSync('node', [CLI, '-i', JSON.stringify(base), '--size', 'XL']);
   assert.equal(res.status, 2);
   assert.match(res.stderr.toString(), /--size must be S, M or L/);
+});
+
+test('suggestions are located in the real file, even with different indentation', async () => {
+  const { parseSuggestion, locateSuggestion } = await import('../src/render.js');
+  const file = 'a\nb\nfunction f() {\n    return x;\n}\nreturn x;\n';
+  const { rows } = parseSuggestion(' function f() {\n-  return x;\n+  return y;');
+  assert.equal(locateSuggestion(rows, file, 3), 3);
+  assert.equal(locateSuggestion(parseSuggestion('-nope').rows, file, 1), null);
+});
+
+test('repository files are embedded once, and paths outside the root are refused', async () => {
+  const { loadRepositoryFiles } = await import('../src/files.js');
+  const root = fileURLToPath(new URL('../examples/sample-repo', import.meta.url));
+  const { files, warnings } = loadRepositoryFiles(root, ['src/models/notification-preferences.ts', 'src/models/notification-preferences.ts', '../../package.json', 'missing.ts']);
+  assert.deepEqual(Object.keys(files), ['src/models/notification-preferences.ts']);
+  assert.equal(warnings.length, 2);
+  assert.ok(warnings.some((w) => w.includes('outside repository_root')));
+});
+
+test('CLI embeds file contents from repository_root for the file viewer', () => {
+  const out = join(mkdtempSync(join(tmpdir(), 'prr-')), 'r.html');
+  execFileSync('node', [CLI, '-i', fileURLToPath(new URL('../examples/pr-482.json', import.meta.url)), '-o', out], { cwd: fileURLToPath(new URL('..', import.meta.url)) });
+  const html = readFileSync(out, 'utf8');
+  assert.match(html, /data-action="view-file"/);
+  const data = JSON.parse(html.match(/id="review-data">(.*?)<\/script>/s)[1]);
+  assert.equal(Object.keys(data.files).length, 4);
+  assert.equal(data.feedbacks.find((f) => f.file.endsWith('notification.service.ts')).hunk.start, 40);
 });

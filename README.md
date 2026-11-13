@@ -47,7 +47,13 @@ generate-pr-review-report -i review.json --dark --size L
 | `-d, --dark`                   | Open the report in dark mode (light is the default).                                                                       |
 | `-h, --help` / `-v, --version` |                                                                                                                            |
 
-`--size` and `--dark` only set how the report opens. Readers can switch the size (S / M / L) and the theme from the top-right of the page. Those changes aren't saved: reopening the file brings back the generated defaults.
+`--size` and `--dark` only set how the report opens. Readers can switch the text size (S / M / L) and the theme from the top-right of the page. The size only changes text, not the page width. Each change is written to the URL (`?size=l&theme=dark`), so a bookmark or shared link opens the same view, and those URL values override the generated defaults.
+
+### Full-file viewer
+
+When the JSON has `repository_root`, the CLI reads each file referenced by a feedback from that folder and embeds it in the report (each file once). The agent never has to repeat file contents in its JSON. In the report, clicking a feedback's file path opens the whole file, with the commented lines highlighted and the code suggestion shown in place as a diff.
+
+The CLI also finds each `suggestion` in the real file (ignoring indentation), so diff line numbers are exact even if `lineStart` is a little off. Files that are missing, binary, larger than 1 MB or outside `repository_root` are skipped with a warning on stderr. The report still generates, and those findings just have no viewer.
 
 On success the absolute output path is printed to **stdout** (easy for an agent to capture). On invalid input it exits `1` and lists _every_ problem on stderr, e.g. `feedbacks[2].severity: expected one of "must_fix", "should_consider", "nit"` — so the agent can fix everything in one retry.
 
@@ -69,6 +75,7 @@ Prefer a temp file (or stdin) over inline `-i '{...}'`. Markdown in summaries of
   "key": 482, // PR number (or any string id) — optional
   "branch": "feature/my-feature", // optional
   "url": "https://github.com/u/r/pull/482", // optional — enables the "View PR" button
+  "repository_root": "/abs/path/to/repo", // optional — checkout of the PR branch; enables the full-file viewer
   "title": "Add user notification preferences", // required — the PR title
   "summary": "Markdown…", // required — overview, architecture, context
   "author": "jdoe", // optional (leading @ is stripped)
@@ -85,7 +92,7 @@ Prefer a temp file (or stdin) over inline `-i '{...}'`. Markdown in summaries of
       "title": "Handle potential null user", // optional — short headline; derived from `comment` if omitted
       "text": "Markdown explanation for you (can be verbose)", // required
       "comment": "Concise comment to post on the PR", // required — editable + copyable in the report
-      "suggestion": " context\n-removed\n+added" // optional — unified-diff lines, numbered from lineStart
+      "suggestion": " context\n-removed\n+added" // optional — unified-diff lines; located in the real file when repository_root is set
     }
   ]
 }
@@ -102,7 +109,8 @@ Severity aliases like `must-fix`, `Must fix`, `consider`, `nitpick` are accepted
 - Review comments filterable by severity, collapsible, each with a copy-path button, an **editable** suggested comment with a copy button, and an optional diff
 - Checkboxes choose which comments go into **Copy review** (copies the whole review as Markdown, including your edits)
 - Empty state "No feedback — PR looks good to go" when `feedbacks` is `[]`
-- S / M / L size switch and a light / dark theme toggle in the top bar
+- Clicking a file path opens the full file, with the commented lines highlighted and the suggestion shown as a diff (needs `repository_root`)
+- S / M / L text size switch and a light / dark theme toggle in the top bar, kept in the URL
 - All agent-provided text is HTML-escaped; Markdown links only allow http(s)/mailto/relative URLs
 
 ## Project layout
@@ -113,7 +121,8 @@ src/validate.js                    schema validation + normalization
 src/markdown.js                    tiny safe Markdown renderer
 src/render.js                      builds the HTML fragments, fills the template
 templates/report.html              page shell: CSS + interaction script
-examples/                          sample inputs (with findings / clean PR)
+src/files.js                       reads repository files for the file viewer
+examples/                          sample inputs (with findings / clean PR) + sample-repo/ for the file viewer
 ```
 
 ## Development

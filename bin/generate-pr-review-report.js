@@ -2,6 +2,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
+import { loadRepositoryFiles } from '../src/files.js';
 import { renderReport } from '../src/render.js';
 import { validateReview, ValidationError } from '../src/validate.js';
 
@@ -89,9 +90,18 @@ try {
   throw err;
 }
 
+// Full file contents for the in-report file viewer, read here so the agent
+// never has to put whole files in its JSON.
+let files = {};
+if (review.repositoryRoot) {
+  const loaded = loadRepositoryFiles(review.repositoryRoot, review.feedbacks.map((f) => f.file));
+  files = loaded.files;
+  for (const warning of loaded.warnings) process.stderr.write(`warning: ${warning}\n`);
+}
+
 const outputPath = resolve(args.output ?? defaultOutput(review));
 mkdirSync(dirname(outputPath), { recursive: true });
-writeFileSync(outputPath, renderReport(review, { size, theme: args.dark ? 'dark' : 'light' }), 'utf8');
+writeFileSync(outputPath, renderReport(review, { size, theme: args.dark ? 'dark' : 'light', files }), 'utf8');
 
 const n = review.feedbacks.length;
 process.stdout.write(`${outputPath}\n`);

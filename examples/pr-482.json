@@ -2,6 +2,7 @@
   "key": 482,
   "branch": "feature/notification-preferences",
   "url": "https://github.com/acme/app/pull/482",
+  "repository_root": "examples/sample-repo",
   "title": "Add user notification preferences",
   "summary": "This PR adds user notification preferences, allowing users to choose which types of notifications they receive (email, push, in-app).\n\n### Architectural changes\n\n- Introduces a new `NotificationPreferences` domain (model, service, and repository).\n- Adds a new API endpoint: `GET/PUT /api/users/:id/notification-preferences`.\n- Persists preferences in a new database table (`notification_preferences`) via a migration.\n- Integrates the preferences in the notification dispatch flow to filter out disabled channels.",
   "author": "jdoe",
@@ -12,32 +13,32 @@
     {
       "file": "src/routes/notification-preferences.route.ts",
       "severity": "should_consider",
-      "lineStart": 18,
-      "lineEnd": 32,
+      "lineStart": 17,
+      "lineEnd": 19,
       "title": "Extract validation to a schema",
       "text": "The route handler manually checks the incoming payload. A shared schema would make validation reusable, improve error messages, and keep the controller focused on request handling.",
       "comment": "Could we extract the request validation to a shared Zod schema? It would keep the route concise and ensure consistent validation across endpoints.",
-      "suggestion": "-if (!body.email || !body.push) {\n-  throw new Error('Invalid preferences');\n-}\n+const preferences = notificationPreferencesSchema.parse(body);"
+      "suggestion": "   const body = req.body;\n \n   // Validate the incoming payload\n-  if (!body.email || !body.push) {\n-    throw new Error('Invalid preferences');\n-  }\n+  const preferences = notificationPreferencesSchema.parse(body);\n \n   const updated = await service.updatePreferences(req.params.id, {"
     },
     {
       "file": "src/services/notification.service.ts",
       "severity": "must_fix",
-      "lineStart": 42,
-      "lineEnd": 47,
+      "lineStart": 41,
+      "lineEnd": 42,
       "title": "Handle potential null user",
       "text": "`userRepository.findById` can return `null`, which would cause a runtime error when accessing `user.notificationPreferences`. We should handle the null case explicitly.",
       "comment": "`user` can be null here. Let's handle the case (e.g., throw a `NotFoundError` or return early) to avoid a potential runtime error.",
-      "suggestion": " const user = await userRepository.findById(userId);\n-return user.notificationPreferences;\n+if (!user) {\n+  throw new NotFoundError(`User ${userId} not found`);\n+}\n+return user.notificationPreferences;"
+      "suggestion": "   async getPreferences(userId: string): Promise<NotificationPreferences> {\n     const user = await userRepository.findById(userId);\n-    return user.notificationPreferences;\n+    if (!user) {\n+      throw new NotFoundError(`User ${userId} not found`);\n+    }\n+    return user.notificationPreferences;\n   }"
     },
     {
       "file": "db/migrations/20250114_add_notification_preferences.sql",
       "severity": "should_consider",
       "lineStart": 6,
-      "lineEnd": 10,
+      "lineEnd": 11,
       "title": "Add a database index for user_id",
       "text": "The new preferences table will be queried by user ID on **every notification dispatch**. Adding an index may help this lookup stay efficient as the table grows.\n\nVerify whether the unique constraint already creates one.",
       "comment": "Since we query preferences by `user_id`, can we confirm that this column is indexed? A unique constraint may already cover it.",
-      "suggestion": " CREATE TABLE notification_preferences (\n   user_id UUID NOT NULL REFERENCES users(id),\n+CREATE INDEX idx_notification_prefs_user_id ON notification_preferences(user_id);"
+      "suggestion": "   in_app BOOLEAN NOT NULL DEFAULT TRUE\n );\n+\n+CREATE INDEX idx_notification_prefs_user_id ON notification_preferences(user_id);\n \n COMMIT;"
     },
     {
       "file": "src/models/notification-preferences.ts",

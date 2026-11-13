@@ -19,8 +19,6 @@ description: Renders a finished pull request review as a self-contained HTML rep
 
 `-o` is optional and defaults to `./review-report-pr-<key>.html`. `-i -` reads JSON from stdin.
 
-If the user asks for it, `--dark` opens the report in dark mode and `--size S|M|L` sets the default text size (`M` if not given). Readers can change both in the page.
-
 ## JSON format
 
 ```json
@@ -28,6 +26,7 @@ If the user asks for it, `--dark` opens the report in dark mode and `--size S|M|
   "key": 482,
   "branch": "feature/my-feature",
   "url": "https://github.com/owner/repo/pull/482",
+  "repository_root": "/abs/path/to/repo",
   "title": "Add user notification preferences",
   "summary": "Markdown: what the PR does, architecture, context.",
   "author": "jdoe",
@@ -36,7 +35,7 @@ If the user asks for it, `--dark` opens the report in dark mode and `--size S|M|
   "numberOfLinesDeleted": 56,
   "feedbacks": [
     {
-      "file": "src/services/notification.service.ts",
+      "file": "src/services/notification.service.ts", // relative to the repo root
       "severity": "must_fix",
       "lineStart": 42,
       "lineEnd": 47,
@@ -52,9 +51,10 @@ If the user asks for it, `--dark` opens the report in dark mode and `--size S|M|
 - **Required:** `title` (the PR title), `summary`, `feedbacks`. Each feedback needs `file`, `severity`, `text` and `comment`.
 - **`severity`:** `must_fix`, `should_consider` or `nit`.
 - **`feedbacks: []`** means a clean PR. The report then shows "No feedback — PR looks good to go".
+- **`repository_root`:** the absolute path of the local checkout of the PR branch. The CLI reads the files from there and shows them in full in the report, so never copy file contents into the JSON.
 - **Paths:** `file` is relative to the repo root. `lineStart`/`lineEnd` are line numbers in the new version of the file.
 - **`title` (in a feedback):** a short headline of about 3–7 words. If it's left out, the first sentence of `comment` is used.
-- **`suggestion`:** optional diff lines. Prefix each with `+` (added), `-` (removed) or a space (context). They're numbered from `lineStart`.
+- **`suggestion`:** optional diff lines. Prefix each with `+` (added), `-` (removed) or a space (context). They're numbered from `lineStart`. Always a 3 lines of the file's code context above and below the change.
 - **Other fields:** leave out any you don't know rather than guessing. That includes `key`, `url`, `branch`, `author` and the counts.
 
 ## If the command is not installed

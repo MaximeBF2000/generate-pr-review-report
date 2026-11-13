@@ -51,8 +51,17 @@ export function validateReview(input) {
   const url = optionalString('url');
   if (url && !/^https?:\/\//i.test(url)) errors.push('url: must start with http:// or https://');
 
+  const rootField = input.repository_root ?? input.repositoryRoot;
+  let repositoryRoot;
+  if (rootField != null && rootField !== '') {
+    // Absolute path expected; a relative one is resolved from the current directory.
+    if (typeof rootField !== 'string') errors.push('repository_root: expected a path string');
+    else repositoryRoot = rootField.trim();
+  }
+
   const review = {
     key: key ?? undefined,
+    repositoryRoot,
     branch: optionalString('branch'),
     url,
     title: isNonEmptyString(input.title) ? input.title.trim() : '',
